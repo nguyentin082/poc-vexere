@@ -32,12 +32,17 @@ def scroll_to_element(driver, element, offset=100):
 
 
 def extract_answer(driver):
-    """Extract and clean the answer text from the answer element."""
+    """Extract the question (from <h1>) and answer (from other tags) separately."""
     answer_element = driver.find_element(
         By.XPATH, '//div[contains(@class, "ElementParagraph")]'
     )
-    text = re.sub(r"\s+", " ", answer_element.text).strip()
-    return text
+
+    question = answer_element.find_element(By.TAG_NAME, "h1").text.strip()
+    answer_parts = answer_element.find_elements(By.XPATH, "./*[not(self::h1)]")
+    answer = " ".join([el.text.strip() for el in answer_parts if el.text.strip()])
+    answer = re.sub(r"\s+", " ", answer)
+
+    return question, answer
 
 
 def process_category(driver, category, category_index):
@@ -59,8 +64,10 @@ def process_category(driver, category, category_index):
                 block.click()
                 time.sleep(1.5)
 
-                text = extract_answer(driver)
-                faq_data.append({"category": category_title, "question_answer": text})
+                question, answer = extract_answer(driver)
+                faq_data.append(
+                    {"category": category_title, "question": question, "answer": answer}
+                )
                 print(f"📌 Collected Q&A #{len(faq_data)}")
 
                 driver.back()
