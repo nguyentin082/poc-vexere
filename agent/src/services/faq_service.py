@@ -129,7 +129,7 @@ def faq_rag_chat(message: str) -> dict:
         try:
             context = format_context(relevant_docs)
             print(f"Context sent to LLM: {context[:200]}...")
-            answer = generate_answer_with_llm(context, message)
+            answer = generate_answer_with_llm(context=context, question=message)
         except Exception as e:
             print(f"Error generating answer with LLM: {e}")
             # Fallback to simple answer from the most relevant document

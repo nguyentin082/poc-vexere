@@ -20,18 +20,19 @@ sys.path.append(
     )
 )
 
-from schema.milvus import init_milvus_collection
+from agent.src.schema.faq_schema import init_milvus_collection
 from core.config import (
     MILVUS_CLOUD_ENDPOINT,
     MILVUS_CLOUD_TOKEN,
     MILVUS_CLOUD_DB_NAME,
-    MILVUS_CLOUD_COLLECTION_NAME,
 )
+
+COLLECTION_NAME = "faq_vexere"
 
 
 def store_faq_to_milvus(data_path: str = "src/mock/faq.json"):
     # Initialize Milvus collection
-    init_milvus_collection()
+    init_milvus_collection(collection_name=COLLECTION_NAME)
 
     with open(data_path, "r", encoding="utf-8") as f:
         raw_data = json.load(f)
@@ -55,7 +56,7 @@ def store_faq_to_milvus(data_path: str = "src/mock/faq.json"):
             "token": MILVUS_CLOUD_TOKEN,
             "db_name": MILVUS_CLOUD_DB_NAME,
         },
-        collection_name=MILVUS_CLOUD_COLLECTION_NAME,
+        collection_name=COLLECTION_NAME,
         vector_field="embedding",
         text_field="answer",
     )
