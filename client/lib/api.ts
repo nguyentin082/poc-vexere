@@ -34,6 +34,7 @@ api.interceptors.response.use(
 
 export interface TicketData {
     _id?: string;
+    id?: string; // Thêm field id từ server
     userName: string;
     userPhone: string;
     userEmail: string;

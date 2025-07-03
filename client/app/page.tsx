@@ -72,6 +72,11 @@ export default function HomePage() {
 
     const isClient = useIsClient();
 
+    // Utility function to get ticket ID
+    const getTicketId = (ticket: TicketData): string | undefined => {
+        return ticket._id || ticket.id;
+    };
+
     // Fetch tickets from API
     const fetchTickets = async () => {
         try {
@@ -241,20 +246,32 @@ export default function HomePage() {
     };
 
     const handleEdit = (ticket: TicketData) => {
+        console.log('Editing ticket:', ticket);
+        console.log('Ticket ID:', getTicketId(ticket));
         setEditingTicket(ticket);
         setFormData(ticket);
         setIsEditDialogOpen(true);
     };
 
     const handleUpdate = async () => {
-        if (!editingTicket || !formData.userName) return;
+        console.log('Updating ticket:', editingTicket);
+        console.log('Form data:', formData);
+
+        if (!editingTicket || !formData.userName) {
+            console.error('Missing editing ticket or userName');
+            return;
+        }
+
+        const ticketId = getTicketId(editingTicket);
+        if (!ticketId) {
+            console.error('Missing ticket ID for update');
+            setError('Không thể cập nhật: thiếu ID vé');
+            return;
+        }
 
         try {
             setLoading(true);
-            const response = await ticketApi.updateTicket(
-                editingTicket._id!,
-                formData
-            );
+            const response = await ticketApi.updateTicket(ticketId, formData);
 
             if (response.success) {
                 await fetchTickets(); // Refresh the list
@@ -461,13 +478,14 @@ export default function HomePage() {
                                                         })
                                                     }
                                                 />
-                                            </div>
+                                            </div>{' '}
                                             <div>
                                                 <Label htmlFor="time">
                                                     Giờ khởi hành
                                                 </Label>
                                                 <Input
                                                     id="time"
+                                                    type="time"
                                                     value={formData.time || ''}
                                                     onChange={(e) =>
                                                         setFormData({
@@ -476,7 +494,6 @@ export default function HomePage() {
                                                                 .value,
                                                         })
                                                     }
-                                                    placeholder="VD: 08:30 AM"
                                                 />
                                             </div>
                                         </div>
@@ -799,7 +816,7 @@ export default function HomePage() {
                 <div className="space-y-4">
                     {filteredTickets.map((ticket, index) => (
                         <Card
-                            key={ticket._id || `ticket-${index}`}
+                            key={getTicketId(ticket) || `ticket-${index}`}
                             className="hover:shadow-lg transition-shadow"
                         >
                             <CardContent className="p-6">
@@ -848,6 +865,11 @@ export default function HomePage() {
                                             <div className="text-xs text-gray-500">
                                                 Mã chuyến: {ticket.tripId}
                                             </div>
+                                            {!getTicketId(ticket) && (
+                                                <div className="text-xs text-red-500">
+                                                    ⚠️ Thiếu ID vé
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
@@ -887,6 +909,7 @@ export default function HomePage() {
                                                     handleEdit(ticket)
                                                 }
                                                 className="flex-1"
+                                                disabled={!getTicketId(ticket)}
                                             >
                                                 <Edit className="w-3 h-3 mr-1" />
                                                 Sửa
@@ -897,6 +920,9 @@ export default function HomePage() {
                                                         variant="outline"
                                                         size="sm"
                                                         className="flex-1 text-red-600 hover:text-red-700 bg-transparent"
+                                                        disabled={
+                                                            !getTicketId(ticket)
+                                                        }
                                                     >
                                                         <Trash2 className="w-3 h-3 mr-1" />
                                                         Xóa
@@ -920,11 +946,17 @@ export default function HomePage() {
                                                             Hủy
                                                         </AlertDialogCancel>
                                                         <AlertDialogAction
-                                                            onClick={() =>
-                                                                handleDelete(
-                                                                    ticket._id!
-                                                                )
-                                                            }
+                                                            onClick={() => {
+                                                                const ticketId =
+                                                                    getTicketId(
+                                                                        ticket
+                                                                    );
+                                                                if (ticketId) {
+                                                                    handleDelete(
+                                                                        ticketId
+                                                                    );
+                                                                }
+                                                            }}
                                                             className="bg-red-600 hover:bg-red-700"
                                                         >
                                                             Xóa vé
@@ -1073,6 +1105,7 @@ export default function HomePage() {
                                 <Label htmlFor="edit-time">Giờ khởi hành</Label>
                                 <Input
                                     id="edit-time"
+                                    type="time"
                                     value={formData.time || ''}
                                     onChange={(e) =>
                                         setFormData({
