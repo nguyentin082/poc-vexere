@@ -12,6 +12,8 @@ sys.path.append(
     )
 )
 
+from src.routes.faq_route import router as faq_router
+
 app = FastAPI(
     title="Vexere Server",
     version="1.0",
@@ -24,7 +26,7 @@ def read_root():
     return {"Hello": "World"}
 
 
-# app.include_router(generate_report_router, prefix="/api/process_data")
+app.include_router(faq_router, prefix="/api/faq")
 
 
 @app.on_event("startup")
@@ -38,4 +40,4 @@ async def startup_event():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8080, log_level="trace")
+    uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info")
