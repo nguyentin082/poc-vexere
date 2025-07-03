@@ -14,6 +14,7 @@ sys.path.append(
 )
 
 from src.routes.ticket_route import router as ticket_router
+from src.routes.chat_history_route import router as chat_history_router
 
 app = FastAPI(
     title="Vexere Server",
@@ -37,6 +38,7 @@ def read_root():
 
 
 app.include_router(ticket_router, prefix="/api/ticket")
+app.include_router(chat_history_router, prefix="/api/chat-history")
 
 
 @app.on_event("startup")
