@@ -5,18 +5,7 @@ from typing import List, Dict
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 
-# Add the parent directory to the path
-sys.path.append(
-    os.path.abspath(
-        os.path.join(
-            os.path.dirname(__file__),
-            "..",
-        )
-    )
-)
-
-
-from integrates.milvus import get_milvus_client
+from src.integrates.milvus import get_milvus_client
 
 llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
 

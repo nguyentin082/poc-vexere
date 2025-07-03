@@ -8,7 +8,7 @@ router = APIRouter()
 
 
 @router.post("/")
-async def faq_chat(request: Request):
+async def faq_route(request: Request):
     try:
         json_body = await request.json()
         message = json_body.get("message")
