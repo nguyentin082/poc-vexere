@@ -1,7 +1,7 @@
 # TODO: Store faq.json data to Milvus Zilliz Cloud vector store
 
 import json
-from langchain.schema import Document
+from langchain_core.documents import Document
 from langchain_community.vectorstores import Milvus
 from langchain_community.document_loaders import TextLoader
 from langchain_openai import OpenAIEmbeddings
