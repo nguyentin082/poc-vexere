@@ -14,6 +14,7 @@ sys.path.append(
 
 from src.routes.faq_route import router as faq_router
 from src.routes.after_service_route import router as after_service_router
+from src.routes.chat_route import router as chat_router
 
 app = FastAPI(
     title="Vexere Server",
@@ -29,6 +30,8 @@ def read_root():
 
 app.include_router(faq_router, prefix="/api/faq")
 app.include_router(after_service_router, prefix="/api/after-service")
+# MAIN ROUTE
+app.include_router(chat_router, prefix="/api/chat")
 
 
 @app.on_event("startup")
