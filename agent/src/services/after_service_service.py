@@ -1,12 +1,29 @@
 import json
 import re
 import requests
+import asyncio
+import threading
 from pprint import pprint
 from datetime import datetime
 from typing import Dict, Any
 
 from src.core.config import BACKEND_URL
 from src.utils.intent_classifier import AfterServiceIntentClassifier
+from src.utils.chat_procesing import append_message_to_chat
+
+
+def save_message_to_chat(chat_id: str, message: str, role: str = "assistant"):
+    """Helper function to save message to chat in a separate thread"""
+
+    def run_async():
+        try:
+            asyncio.run(append_message_to_chat(chat_id, message, role))
+        except Exception as e:
+            print(f"Error saving {role} message to chat {chat_id}: {e}")
+
+    thread = threading.Thread(target=run_async)
+    thread.daemon = True
+    thread.start()
 
 
 def get_all_tickets():
@@ -90,7 +107,7 @@ class AfterServiceHandler:
     def handle_cancel_ticket(self, message: str, entities: Dict) -> Dict:
         ticket_id = entities.get("ticket_code")
 
-        if not ticket_code:
+        if not ticket_id:
             return {
                 "message": message,
                 "intent": "cancel_ticket",
@@ -122,7 +139,6 @@ class AfterServiceHandler:
                     "response": "Không thể hủy vé lúc này.",
                 }
         except Exception as e:
-            print(f"Lỗi hủy vé: {e}")
             return {
                 "message": message,
                 "intent": "cancel_ticket",
@@ -174,16 +190,16 @@ class AfterServiceHandler:
         }
 
 
-def after_service_chat(message: str) -> Dict[str, Any]:
+def after_service_chat(message: str, chat_id: str = None) -> Dict[str, Any]:
     try:
         handler = AfterServiceHandler()
 
-        # TODO: Classify intent and entity from user message
+        # Classify intent and entity from user message
         classification_result = handler.classifier.classify_intent(message)
         intent = classification_result["intent"]
         entities = classification_result.get("entities")
 
-        # TODO: Choose handler based on intent
+        # Choose handler based on intent
         if intent == "change_schedule":
             response = handler.handle_change_schedule(message, entities)
         elif intent == "cancel_ticket":
@@ -199,12 +215,25 @@ def after_service_chat(message: str) -> Dict[str, Any]:
         response["classification"] = classification_result
         response["timestamp"] = datetime.now().isoformat()
 
+        # Save assistant response to chat history
+        assistant_message = response.get("response", "")
+        if chat_id and assistant_message:
+            save_message_to_chat(chat_id, assistant_message, "assistant")
+
         return response
 
     except Exception as e:
+        error_message = (
+            "Xin lỗi, có lỗi xảy ra trong quá trình xử lý. Vui lòng thử lại sau."
+        )
+
+        # Save error message to chat history
+        if chat_id:
+            save_message_to_chat(chat_id, error_message, "assistant")
+
         return {
             "intent": "error",
-            "response": "Xin lỗi, có lỗi xảy ra trong quá trình xử lý. Vui lòng thử lại sau.",
+            "response": error_message,
             "error": str(e),
             "classification": {
                 "intent": "error",
