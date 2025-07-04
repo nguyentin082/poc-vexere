@@ -2,7 +2,6 @@
 
 import type React from 'react';
 
-import { useChat } from 'ai/react';
 import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,8 +28,12 @@ import { mockChatSessions, type ChatMessage, type ChatSession } from '@/mock';
 import { chatApi } from '@/lib/chat-api';
 
 export default function ChatPage() {
-    const { messages, input, handleInputChange, handleSubmit, isLoading } =
-        useChat();
+    // Replace useChat with local state management
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [input, setInput] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [currentChatId, setCurrentChatId] = useState<string>('');
+
     const [files, setFiles] = useState<FileList | undefined>(undefined);
     const [isRecording, setIsRecording] = useState(false);
     const [activeTab, setActiveTab] = useState('new-chat');
@@ -39,10 +42,15 @@ export default function ChatPage() {
     );
     const [chatHistory, setChatHistory] = useState<ChatSession[]>([]);
     const [loading, setLoading] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setInput(e.target.value);
+    };
 
     const startRecording = async () => {
         try {
@@ -78,12 +86,140 @@ export default function ChatPage() {
         }
     };
 
-    const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
-        handleSubmit(e, {
-            experimental_attachments: files,
-        });
+        if (!input.trim() || isLoading) return;
+
+        const userInput = input.trim();
+        const userMessage: ChatMessage = {
+            id: Math.random().toString(36).substr(2, 9),
+            role: 'user',
+            content: userInput,
+            timestamp: new Date().toISOString(),
+        };
+
+        const isFirstMessage = messages.length === 0 && !selectedSession;
+        const isSessionChat = !!selectedSession;
+        const chatIdToUse = isSessionChat ? selectedSession.id : currentChatId;
+
+        // Add user message to UI immediately for better UX
+        if (isSessionChat) {
+            // Update the selected session with the new user message
+            setSelectedSession((prev) =>
+                prev
+                    ? {
+                          ...prev,
+                          messages: [...prev.messages, userMessage],
+                          updatedAt: new Date().toISOString(),
+                      }
+                    : null
+            );
+        } else {
+            // Add to local messages for new chat
+            setMessages((prev) => [...prev, userMessage]);
+        }
+
+        setInput('');
+        setIsLoading(true);
+
+        try {
+            // Call the agent API
+            const response = await chatApi.sendChatMessage({
+                chat_id: chatIdToUse || undefined,
+                message: userInput,
+            });
+
+            if (response.success) {
+                // Update chat_id if we got one from response for new chats
+                if (response.data?.chat_id && !isSessionChat) {
+                    setCurrentChatId(response.data.chat_id);
+                }
+
+                // DON'T update messages here - let fetchChatHistory handle all UI updates
+                // This prevents double rendering
+
+                // Refresh chat history to get the updated sessions from the agent
+                // Single delayed fetch to ensure agent has saved to database
+                setTimeout(async () => {
+                    try {
+                        await fetchChatHistory(true); // quiet refresh to avoid UI conflicts
+                    } catch (fetchError) {
+                        console.error(
+                            'Error refreshing chat history:',
+                            fetchError
+                        );
+                        // Retry once on error
+                        setTimeout(async () => {
+                            try {
+                                await fetchChatHistory(true);
+                            } catch (retryError) {
+                                console.error(
+                                    'Retry fetch failed:',
+                                    retryError
+                                );
+                            }
+                        }, 1000);
+                    }
+                }, 1000);
+            } else {
+                // DON'T add error message to UI - just log it
+                console.error(
+                    'Chat API error:',
+                    response.error || 'Không thể kết nối đến server'
+                );
+
+                // const errorMessage: ChatMessage = {
+                //     id: Math.random().toString(36).substr(2, 9),
+                //     role: 'assistant',
+                //     content: `Xin lỗi, đã có lỗi xảy ra: ${
+                //         response.error || 'Không thể kết nối đến server'
+                //     }`,
+                //     timestamp: new Date().toISOString(),
+                // };
+
+                // if (isSessionChat && selectedSession) {
+                //     setSelectedSession((prev) =>
+                //         prev
+                //             ? {
+                //                   ...prev,
+                //                   messages: [...prev.messages, errorMessage],
+                //                   updatedAt: new Date().toISOString(),
+                //               }
+                //             : null
+                //     );
+                // } else {
+                //     setMessages((prev) => [...prev, errorMessage]);
+                // }
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+
+            // DON'T add error message to UI - just log it
+            // const errorMessage: ChatMessage = {
+            //     id: Math.random().toString(36).substr(2, 9),
+            //     role: 'assistant',
+            //     content:
+            //         'Xin lỗi, đã có lỗi kết nối xảy ra. Vui lòng thử lại sau.',
+            //     timestamp: new Date().toISOString(),
+            // };
+
+            // if (isSessionChat && selectedSession) {
+            //     setSelectedSession((prev) =>
+            //         prev
+            //             ? {
+            //                   ...prev,
+            //                   messages: [...prev.messages, errorMessage],
+            //                   updatedAt: new Date().toISOString(),
+            //               }
+            //             : null
+            //     );
+            // } else {
+            //     setMessages((prev) => [...prev, errorMessage]);
+            // }
+        } finally {
+            setIsLoading(false);
+        }
 
         // Reset form
         setFiles(undefined);
@@ -137,30 +273,33 @@ export default function ChatPage() {
     };
 
     // Fetch chat history from API
-    const fetchChatHistory = async () => {
+    const fetchChatHistory = async (isQuietRefresh = false) => {
         try {
-            setLoading(true);
+            if (!isQuietRefresh) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
             setError(null);
             const response = await chatApi.getChatHistory();
-
-            console.log('API Response:', response); // Debug log
 
             if (response.success) {
                 // Ensure response.data is an array before setting it
                 if (Array.isArray(response.data)) {
                     setChatHistory(response.data);
-                    console.log(
-                        'Chat history loaded successfully:',
-                        response.data.length,
-                        'sessions'
-                    );
+
+                    // Update selectedSession if it exists and we have updated data
+                    if (selectedSession) {
+                        const updatedSession = response.data.find(
+                            (session) => session.id === selectedSession.id
+                        );
+                        if (updatedSession) {
+                            setSelectedSession(updatedSession);
+                        }
+                    }
+
                     // Clear any existing error message on successful load
                     setError(null);
-
-                    // Optional: Show info message if no chat history exists
-                    if (response.data.length === 0) {
-                        console.log('No chat history found, starting fresh');
-                    }
                 } else {
                     console.error(
                         'API returned non-array data:',
@@ -193,73 +332,23 @@ export default function ChatPage() {
             // Fallback to mock data
             setChatHistory(mockChatSessions);
         } finally {
-            setLoading(false);
+            if (!isQuietRefresh) {
+                setLoading(false);
+            } else {
+                setIsRefreshing(false);
+            }
         }
     };
 
     // Load chat history on component mount
     useEffect(() => {
-        fetchChatHistory();
+        fetchChatHistory(false);
     }, []);
 
-    // Handle creating a new chat session
-    const handleCreateChatSession = async (
-        title: string,
-        messages: ChatMessage[]
-    ) => {
-        try {
-            setLoading(true);
-            const newSession = {
-                title,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                status: 'active' as const,
-                messages: messages.map((msg) => ({
-                    ...msg,
-                    timestamp:
-                        typeof msg.timestamp === 'string'
-                            ? msg.timestamp
-                            : new Date().toISOString(),
-                })),
-            };
-
-            const response = await chatApi.createChatSession(newSession);
-            if (response.success) {
-                await fetchChatHistory(); // Refresh the list
-            } else {
-                setError('Không thể tạo phiên chat mới');
-            }
-        } catch (error) {
-            console.error('Error creating chat session:', error);
-            setError('Lỗi khi tạo phiên chat mới');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Handle updating a chat session
-    const handleUpdateChatSession = async (
-        sessionId: string,
-        updates: Partial<ChatSession>
-    ) => {
-        try {
-            setLoading(true);
-            const response = await chatApi.updateChatSession(sessionId, {
-                ...updates,
-                updatedAt: new Date().toISOString(),
-            });
-            if (response.success) {
-                await fetchChatHistory(); // Refresh the list
-            } else {
-                setError('Không thể cập nhật phiên chat');
-            }
-        } catch (error) {
-            console.error('Error updating chat session:', error);
-            setError('Lỗi khi cập nhật phiên chat');
-        } finally {
-            setLoading(false);
-        }
-    };
+    // Debug effect to track chatHistory changes
+    useEffect(() => {
+        // Optional: Add any side effects when chat history changes
+    }, [chatHistory]);
 
     // Handle deleting a chat session
     const handleDeleteChatSession = async (sessionId: string) => {
@@ -267,7 +356,7 @@ export default function ChatPage() {
             setLoading(true);
             const response = await chatApi.deleteChatSession(sessionId);
             if (response.success) {
-                await fetchChatHistory(); // Refresh the list
+                await fetchChatHistory(false); // Refresh the list
                 // Clear selected session if it was the deleted one
                 if (selectedSession?.id === sessionId) {
                     setSelectedSession(null);
@@ -347,7 +436,7 @@ export default function ChatPage() {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={fetchChatHistory}
+                                        onClick={() => fetchChatHistory(false)}
                                         disabled={loading}
                                     >
                                         <div
@@ -357,6 +446,15 @@ export default function ChatPage() {
                                         >
                                             🔄
                                         </div>
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => fetchChatHistory(false)}
+                                        disabled={loading}
+                                        className="ml-1"
+                                    >
+                                        <div className="w-4 h-4">🔧</div>
                                     </Button>
                                 </CardTitle>
                             </CardHeader>
@@ -373,6 +471,15 @@ export default function ChatPage() {
                                             onClick={() => {
                                                 setActiveTab('new-chat');
                                                 setSelectedSession(null);
+                                                setMessages([]);
+                                                setCurrentChatId('');
+                                                // Clear any form state
+                                                setFiles(undefined);
+                                                setAudioBlob(null);
+                                                if (fileInputRef.current) {
+                                                    fileInputRef.current.value =
+                                                        '';
+                                                }
                                             }}
                                         >
                                             <MessageCircle className="w-4 h-4 mr-2" />
@@ -397,6 +504,11 @@ export default function ChatPage() {
                                                             session
                                                         );
                                                         setActiveTab('history');
+                                                        // Clear new chat state
+                                                        setMessages([]);
+                                                        setCurrentChatId(
+                                                            session.id
+                                                        );
                                                     }}
                                                 >
                                                     <div className="flex-1 min-w-0">
@@ -466,6 +578,25 @@ export default function ChatPage() {
                                     <p className="text-sm text-gray-600">
                                         Hỗ trợ đặt vé, tìm kiếm chuyến xe và
                                         giải đáp thắc mắc
+                                        {messages.length > 0 && (
+                                            <span className="block text-xs text-blue-600 mt-1 font-medium">
+                                                💬 Cuộc trò chuyện mới - Tin
+                                                nhắn đầu tiên sẽ tạo phiên chat
+                                                tự động
+                                            </span>
+                                        )}
+                                    </p>
+                                )}
+                                {selectedSession && (
+                                    <p className="text-sm text-gray-600">
+                                        {selectedSession.status === 'active'
+                                            ? '📝 Phiên chat đang hoạt động - Tiếp tục cuộc trò chuyện'
+                                            : `📋 Phiên chat đã ${
+                                                  selectedSession.status ===
+                                                  'resolved'
+                                                      ? 'được giải quyết'
+                                                      : 'tạm dừng'
+                                              }`}
                                     </p>
                                 )}
                             </CardHeader>
@@ -476,99 +607,135 @@ export default function ChatPage() {
                                     <div className="space-y-4">
                                         {/* Show history messages if viewing a session */}
                                         {selectedSession ? (
-                                            selectedSession.messages.map(
-                                                (message) => (
-                                                    <div
-                                                        key={message.id}
-                                                        className={`flex ${
-                                                            message.role ===
-                                                            'user'
-                                                                ? 'justify-end'
-                                                                : 'justify-start'
-                                                        }`}
-                                                    >
+                                            <>
+                                                {selectedSession.messages.map(
+                                                    (message) => (
                                                         <div
-                                                            className={`max-w-[80%] rounded-lg p-3 ${
+                                                            key={message.id}
+                                                            className={`flex ${
                                                                 message.role ===
                                                                 'user'
-                                                                    ? 'bg-orange-500 text-white'
-                                                                    : 'bg-white text-gray-900 shadow-sm'
+                                                                    ? 'justify-end'
+                                                                    : 'justify-start'
                                                             }`}
                                                         >
-                                                            <div className="flex items-center mb-1">
-                                                                {message.role ===
-                                                                'user' ? (
-                                                                    <User className="w-4 h-4 mr-2" />
-                                                                ) : (
-                                                                    <Bot className="w-4 h-4 mr-2 text-orange-500" />
-                                                                )}
-                                                                <span className="text-xs opacity-75">
-                                                                    {message.role ===
+                                                            <div
+                                                                className={`max-w-[80%] rounded-lg p-3 ${
+                                                                    message.role ===
                                                                     'user'
-                                                                        ? 'Bạn'
-                                                                        : 'Trợ lý'}
-                                                                </span>
-                                                                <span className="text-xs opacity-50 ml-2">
-                                                                    {formatTime(
-                                                                        message.timestamp
+                                                                        ? 'bg-orange-500 text-white'
+                                                                        : 'bg-white text-gray-900 shadow-sm'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center mb-1">
+                                                                    {message.role ===
+                                                                    'user' ? (
+                                                                        <User className="w-4 h-4 mr-2" />
+                                                                    ) : (
+                                                                        <Bot className="w-4 h-4 mr-2 text-orange-500" />
                                                                     )}
-                                                                </span>
-                                                            </div>
-
-                                                            <div className="whitespace-pre-wrap">
-                                                                {
-                                                                    message.content
-                                                                }
-                                                            </div>
-
-                                                            {/* Display attachments */}
-                                                            {message.attachments?.map(
-                                                                (
-                                                                    attachment,
-                                                                    index
-                                                                ) => (
-                                                                    <div
-                                                                        key={
-                                                                            index
-                                                                        }
-                                                                        className="mt-2"
-                                                                    >
-                                                                        {attachment.type ===
-                                                                            'image' && (
-                                                                            <Image
-                                                                                src={
-                                                                                    attachment.url ||
-                                                                                    '/placeholder.svg'
-                                                                                }
-                                                                                alt={
-                                                                                    attachment.name
-                                                                                }
-                                                                                width={
-                                                                                    200
-                                                                                }
-                                                                                height={
-                                                                                    200
-                                                                                }
-                                                                                className="rounded-lg"
-                                                                            />
+                                                                    <span className="text-xs opacity-75">
+                                                                        {message.role ===
+                                                                        'user'
+                                                                            ? 'Bạn'
+                                                                            : 'Trợ lý'}
+                                                                    </span>
+                                                                    <span className="text-xs opacity-50 ml-2">
+                                                                        {formatTime(
+                                                                            message.timestamp
                                                                         )}
-                                                                        {attachment.type ===
-                                                                            'audio' && (
-                                                                            <audio
-                                                                                controls
-                                                                                src={
-                                                                                    attachment.url
-                                                                                }
-                                                                                className="mt-2"
-                                                                            />
-                                                                        )}
+                                                                    </span>
+                                                                </div>
+
+                                                                <div className="whitespace-pre-wrap">
+                                                                    {
+                                                                        message.content
+                                                                    }
+                                                                </div>
+
+                                                                {/* Display attachments */}
+                                                                {message.attachments?.map(
+                                                                    (
+                                                                        attachment,
+                                                                        index
+                                                                    ) => (
+                                                                        <div
+                                                                            key={
+                                                                                index
+                                                                            }
+                                                                            className="mt-2"
+                                                                        >
+                                                                            {attachment.type ===
+                                                                                'image' && (
+                                                                                <Image
+                                                                                    src={
+                                                                                        attachment.url ||
+                                                                                        '/placeholder.svg'
+                                                                                    }
+                                                                                    alt={
+                                                                                        attachment.name
+                                                                                    }
+                                                                                    width={
+                                                                                        200
+                                                                                    }
+                                                                                    height={
+                                                                                        200
+                                                                                    }
+                                                                                    className="rounded-lg"
+                                                                                />
+                                                                            )}
+                                                                            {attachment.type ===
+                                                                                'audio' && (
+                                                                                <audio
+                                                                                    controls
+                                                                                    src={
+                                                                                        attachment.url
+                                                                                    }
+                                                                                    className="mt-2"
+                                                                                />
+                                                                            )}
+                                                                        </div>
+                                                                    )
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                )}
+
+                                                {/* Loading state for session chat */}
+                                                {isLoading && (
+                                                    <div className="flex justify-start">
+                                                        <div className="bg-white text-gray-900 shadow-sm rounded-lg p-3">
+                                                            <div className="flex items-center">
+                                                                <Bot className="w-4 h-4 mr-2 text-orange-500" />
+                                                                <div className="flex items-center space-x-1">
+                                                                    <span className="text-sm">
+                                                                        Đang trả
+                                                                        lời
+                                                                    </span>
+                                                                    <div className="flex space-x-1">
+                                                                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"></div>
+                                                                        <div
+                                                                            className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"
+                                                                            style={{
+                                                                                animationDelay:
+                                                                                    '0.1s',
+                                                                            }}
+                                                                        ></div>
+                                                                        <div
+                                                                            className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"
+                                                                            style={{
+                                                                                animationDelay:
+                                                                                    '0.2s',
+                                                                            }}
+                                                                        ></div>
                                                                     </div>
-                                                                )
-                                                            )}
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                )
-                                            )
+                                                )}
+                                            </>
                                         ) : (
                                             <>
                                                 {/* New chat welcome message */}
@@ -671,7 +838,7 @@ export default function ChatPage() {
                                                             </div>
 
                                                             {/* Display attachments */}
-                                                            {message.experimental_attachments?.map(
+                                                            {message.attachments?.map(
                                                                 (
                                                                     attachment,
                                                                     index
@@ -682,9 +849,8 @@ export default function ChatPage() {
                                                                         }
                                                                         className="mt-2"
                                                                     >
-                                                                        {attachment.contentType?.startsWith(
-                                                                            'image/'
-                                                                        ) && (
+                                                                        {attachment.type ===
+                                                                            'image' && (
                                                                             <Image
                                                                                 src={
                                                                                     attachment.url ||
@@ -703,6 +869,16 @@ export default function ChatPage() {
                                                                                 className="rounded-lg"
                                                                             />
                                                                         )}
+                                                                        {attachment.type ===
+                                                                            'audio' && (
+                                                                            <audio
+                                                                                controls
+                                                                                src={
+                                                                                    attachment.url
+                                                                                }
+                                                                                className="mt-2"
+                                                                            />
+                                                                        )}
                                                                     </div>
                                                                 )
                                                             )}
@@ -715,10 +891,29 @@ export default function ChatPage() {
                                                         <div className="bg-white text-gray-900 shadow-sm rounded-lg p-3">
                                                             <div className="flex items-center">
                                                                 <Bot className="w-4 h-4 mr-2 text-orange-500" />
-                                                                <span className="text-sm">
-                                                                    Đang trả
-                                                                    lời...
-                                                                </span>
+                                                                <div className="flex items-center space-x-1">
+                                                                    <span className="text-sm">
+                                                                        Đang trả
+                                                                        lời
+                                                                    </span>
+                                                                    <div className="flex space-x-1">
+                                                                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"></div>
+                                                                        <div
+                                                                            className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"
+                                                                            style={{
+                                                                                animationDelay:
+                                                                                    '0.1s',
+                                                                            }}
+                                                                        ></div>
+                                                                        <div
+                                                                            className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"
+                                                                            style={{
+                                                                                animationDelay:
+                                                                                    '0.2s',
+                                                                            }}
+                                                                        ></div>
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -728,8 +923,9 @@ export default function ChatPage() {
                                     </div>
                                 </ScrollArea>
 
-                                {/* Input Area - Only show for new chat */}
-                                {!selectedSession && (
+                                {/* Input Area - Show for new chat and active sessions */}
+                                {(!selectedSession ||
+                                    selectedSession.status === 'active') && (
                                     <form
                                         onSubmit={handleFormSubmit}
                                         className="space-y-3"
@@ -821,7 +1017,11 @@ export default function ChatPage() {
                                             <Input
                                                 value={input}
                                                 onChange={handleInputChange}
-                                                placeholder="Nhập tin nhắn hoặc hỏi về vé xe..."
+                                                placeholder={
+                                                    selectedSession
+                                                        ? 'Tiếp tục cuộc trò chuyện...'
+                                                        : 'Nhập tin nhắn hoặc hỏi về vé xe...'
+                                                }
                                                 className="flex-1"
                                             />
 
@@ -836,13 +1036,23 @@ export default function ChatPage() {
                                     </form>
                                 )}
 
-                                {/* Read-only message for history */}
-                                {selectedSession && (
-                                    <div className="bg-gray-100 p-3 rounded-lg text-center text-sm text-gray-600">
-                                        Đây là cuộc hội thoại đã kết thúc. Để
-                                        chat mới, vui lòng chọn "Chat mới".
-                                    </div>
-                                )}
+                                {/* Disabled session message */}
+                                {selectedSession &&
+                                    selectedSession.status !== 'active' && (
+                                        <div className="bg-gray-100 p-3 rounded-lg text-center text-sm text-gray-600">
+                                            📝 Phiên chat này đã{' '}
+                                            {selectedSession.status ===
+                                            'resolved'
+                                                ? 'được giải quyết'
+                                                : 'tạm dừng'}
+                                            . Không thể gửi tin nhắn mới.
+                                            <br />
+                                            <span className="text-xs text-gray-500 mt-1 block">
+                                                Để bắt đầu cuộc trò chuyện mới,
+                                                vui lòng chọn "Chat mới".
+                                            </span>
+                                        </div>
+                                    )}
                             </CardContent>
                         </Card>
                     </div>
