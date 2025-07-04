@@ -14,6 +14,12 @@ sys.path.append(
 
 from src.routes.faq_route import router as faq_router
 from src.routes.after_service_route import router as after_service_router
+
+# Main chat route
+# This is the main chat route that handles all chat-related requests.
+# It includes the chat service which processes user messages and determines the appropriate response.
+# It also includes the classification logic to route messages to either FAQ or after-service handling.
+# The chat route is designed to be flexible and can be extended in the future to include more features or services.
 from src.routes.chat_route import router as chat_router
 
 app = FastAPI(
