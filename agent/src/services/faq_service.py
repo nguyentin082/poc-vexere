@@ -6,6 +6,8 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 
 from src.integrates.milvus import get_milvus_client
+from src.core.config import BACKEND_URL
+from src.utils.chat_procesing import append_message_to_chat
 
 llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0)
 
@@ -85,7 +87,7 @@ def generate_answer_with_llm(context: str, question: str) -> str:
         return "Xin lỗi, đã có lỗi xảy ra khi tạo câu trả lời."
 
 
-def faq_rag_chat(message: str) -> dict:
+def faq_rag_chat(message: str, chat_id: str = None) -> dict:
     """Main RAG chat function using Milvus Cloud vector search"""
     try:
         if not message or not message.strip():
@@ -107,9 +109,22 @@ def faq_rag_chat(message: str) -> dict:
             }
 
         if not relevant_docs:
+            answer = "Xin lỗi, tôi không tìm thấy thông tin phù hợp với câu hỏi của bạn. Vui lòng liên hệ tổng đài 1900 6484 để được hỗ trợ tốt hơn."
+
+            # Save assistant response to chat history
+            if chat_id:
+                try:
+                    import asyncio
+
+                    asyncio.create_task(
+                        append_message_to_chat(chat_id, answer, role="assistant")
+                    )
+                except Exception as e:
+                    print(f"Error saving assistant message to chat: {e}")
+
             return {
                 "success": True,
-                "message": "Xin lỗi, tôi không tìm thấy thông tin phù hợp với câu hỏi của bạn. Vui lòng liên hệ tổng đài 1900 6484 để được hỗ trợ tốt hơn.",
+                "message": answer,
                 "user_question": message,
                 "relevant_docs_count": 0,
             }
@@ -124,6 +139,17 @@ def faq_rag_chat(message: str) -> dict:
             # Fallback to simple answer from the most relevant document
             answer = f"Dựa trên thông tin FAQ: {relevant_docs[0]['answer']}"
 
+        # Save assistant response to chat history
+        if chat_id:
+            try:
+                import asyncio
+
+                asyncio.create_task(
+                    append_message_to_chat(chat_id, answer, role="assistant")
+                )
+            except Exception as e:
+                print(f"Error saving assistant message to chat: {e}")
+
         return {
             "success": True,
             "message": answer,
@@ -133,9 +159,24 @@ def faq_rag_chat(message: str) -> dict:
 
     except Exception as e:
         print(f"Error in rag_chat: {e}")
+        error_message = (
+            "Xin lỗi, đã có lỗi xảy ra khi xử lý câu hỏi của bạn. Vui lòng thử lại sau."
+        )
+
+        # Save error message to chat history
+        if chat_id:
+            try:
+                import asyncio
+
+                asyncio.create_task(
+                    append_message_to_chat(chat_id, error_message, role="assistant")
+                )
+            except Exception as e:
+                print(f"Error saving error message to chat: {e}")
+
         return {
             "success": False,
             "error": str(e),
-            "message": "Xin lỗi, đã có lỗi xảy ra khi xử lý câu hỏi của bạn. Vui lòng thử lại sau.",
+            "message": error_message,
             "user_question": message,
         }

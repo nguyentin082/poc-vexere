@@ -37,9 +37,9 @@ def classify_route(message: str) -> str:
     return response.content.strip().lower()
 
 
-def chat_service(message: str):
+def chat_service(message: str, chat_history: list[dict], chat_id: str = None) -> dict:
     route = classify_route(message)
     if route == "faq":
-        return faq_rag_chat(message)
+        return faq_rag_chat(message=message, chat_id=chat_id)
     elif route == "after_service":
         return after_service_chat(message)
