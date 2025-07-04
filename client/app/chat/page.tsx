@@ -44,6 +44,9 @@ export default function ChatPage() {
     const [loading, setLoading] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [pendingAutoSelectChatId, setPendingAutoSelectChatId] = useState<
+        string | null
+    >(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -144,6 +147,14 @@ export default function ChatPage() {
                 setTimeout(async () => {
                     try {
                         await fetchChatHistory(true); // quiet refresh to avoid UI conflicts
+
+                        // Auto-select the new chat session for better UX
+                        if (response.data?.chat_id && !isSessionChat) {
+                            console.log(
+                                `🎯 Setting pending auto-select for: ${response.data.chat_id}`
+                            );
+                            setPendingAutoSelectChatId(response.data.chat_id);
+                        }
                     } catch (fetchError) {
                         console.error(
                             'Error refreshing chat history:',
@@ -153,6 +164,16 @@ export default function ChatPage() {
                         setTimeout(async () => {
                             try {
                                 await fetchChatHistory(true);
+
+                                // Auto-select on retry as well
+                                if (response.data?.chat_id && !isSessionChat) {
+                                    console.log(
+                                        `🎯 Setting pending auto-select (retry) for: ${response.data.chat_id}`
+                                    );
+                                    setPendingAutoSelectChatId(
+                                        response.data.chat_id
+                                    );
+                                }
                             } catch (retryError) {
                                 console.error(
                                     'Retry fetch failed:',
@@ -349,6 +370,32 @@ export default function ChatPage() {
     useEffect(() => {
         // Optional: Add any side effects when chat history changes
     }, [chatHistory]);
+
+    // Auto-select pending session when chatHistory updates
+    useEffect(() => {
+        if (pendingAutoSelectChatId && chatHistory.length > 0) {
+            console.log(
+                `🔍 Checking for pending auto-select: ${pendingAutoSelectChatId}`
+            );
+            const newSession = chatHistory.find(
+                (session) => session.id === pendingAutoSelectChatId
+            );
+            if (newSession) {
+                console.log(`✅ Auto-selecting session: ${newSession.title}`);
+                setSelectedSession(newSession);
+                setActiveTab('history');
+                // Clear new chat state since we're switching to session view
+                setMessages([]);
+                setCurrentChatId(newSession.id);
+                // Clear the pending auto-select
+                setPendingAutoSelectChatId(null);
+            } else {
+                console.warn(
+                    `⚠️ Session ${pendingAutoSelectChatId} not yet available in chatHistory`
+                );
+            }
+        }
+    }, [chatHistory, pendingAutoSelectChatId]);
 
     // Handle deleting a chat session
     const handleDeleteChatSession = async (sessionId: string) => {
