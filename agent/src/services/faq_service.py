@@ -155,6 +155,7 @@ def faq_rag_chat(message: str, chat_id: str = None) -> dict:
             "message": answer,
             "user_question": message,
             "relevant_docs_count": len(relevant_docs),
+            "chat_id": chat_id,  # Include chat_id in response
         }
 
     except Exception as e:
@@ -179,4 +180,5 @@ def faq_rag_chat(message: str, chat_id: str = None) -> dict:
             "error": str(e),
             "message": error_message,
             "user_question": message,
+            "chat_id": chat_id,  # Include chat_id in error response
         }

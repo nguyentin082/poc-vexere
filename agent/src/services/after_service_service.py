@@ -214,6 +214,7 @@ def after_service_chat(message: str, chat_id: str = None) -> Dict[str, Any]:
         # Add classification metadata
         response["classification"] = classification_result
         response["timestamp"] = datetime.now().isoformat()
+        response["chat_id"] = chat_id  # Include chat_id in response
 
         # Save assistant response to chat history
         assistant_message = response.get("response", "")
@@ -235,6 +236,7 @@ def after_service_chat(message: str, chat_id: str = None) -> Dict[str, Any]:
             "intent": "error",
             "response": error_message,
             "error": str(e),
+            "chat_id": chat_id,  # Include chat_id in error response
             "classification": {
                 "intent": "error",
                 "confidence": 0.0,
