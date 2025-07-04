@@ -307,11 +307,19 @@ export default function ChatPage() {
             if (response.success) {
                 // Ensure response.data is an array before setting it
                 if (Array.isArray(response.data)) {
-                    setChatHistory(response.data);
+                    // Sort chat history by updatedAt (most recent first)
+                    const sortedChatHistory = response.data.sort((a, b) => {
+                        return (
+                            new Date(b.updatedAt).getTime() -
+                            new Date(a.updatedAt).getTime()
+                        );
+                    });
+
+                    setChatHistory(sortedChatHistory);
 
                     // Update selectedSession if it exists and we have updated data
                     if (selectedSession) {
-                        const updatedSession = response.data.find(
+                        const updatedSession = sortedChatHistory.find(
                             (session) => session.id === selectedSession.id
                         );
                         if (updatedSession) {
