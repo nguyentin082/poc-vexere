@@ -21,6 +21,9 @@ import {
     Trash2,
     Clock,
     CheckCircle,
+    ChevronDown,
+    ArrowLeft,
+    Menu,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -50,6 +53,36 @@ export default function ChatPage() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+
+    // Scroll management refs
+    const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const [isNearBottom, setIsNearBottom] = useState(true);
+
+    // Auto scroll to bottom function
+    const scrollToBottom = () => {
+        if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({
+                behavior: 'smooth',
+                block: 'end',
+            });
+        }
+    };
+
+    // Check if user is near bottom of chat
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+        const isBottom = scrollTop + clientHeight >= scrollHeight - 100; // 100px threshold
+        setIsNearBottom(isBottom);
+    };
+
+    // Auto scroll when messages change, but only if user is near bottom
+    useEffect(() => {
+        if (isNearBottom) {
+            const timeoutId = setTimeout(scrollToBottom, 100);
+            return () => clearTimeout(timeoutId);
+        }
+    }, [messages, selectedSession?.messages, isLoading, isNearBottom]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setInput(e.target.value);
@@ -429,9 +462,9 @@ export default function ChatPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-            {/* Header */}
-            <header className="bg-white shadow-sm border-b sticky top-0 z-40">
+        <div className="h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
+            {/* Fixed Header */}
+            <header className="bg-white shadow-sm border-b z-40 flex-shrink-0">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-16">
                         <div className="flex items-center space-x-2">
@@ -452,219 +485,453 @@ export default function ChatPage() {
                 </div>
             </header>
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                {/* Error Alert */}
-                {error && (
-                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                        <div className="flex">
-                            <div className="text-red-800 text-sm">{error}</div>
-                            <button
-                                onClick={() => setError(null)}
-                                className="ml-auto text-red-500 hover:text-red-700"
-                            >
-                                ×
-                            </button>
+            {/* Main Content Area - Fixed Height */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-2 sm:py-6 flex-1 flex flex-col">
+                    {/* Error Alert */}
+                    {error && (
+                        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex-shrink-0">
+                            <div className="flex">
+                                <div className="text-red-800 text-sm">
+                                    {error}
+                                </div>
+                                <button
+                                    onClick={() => setError(null)}
+                                    className="ml-auto text-red-500 hover:text-red-700"
+                                >
+                                    ×
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )}
 
-                {/* Loading State */}
-                {loading && (
-                    <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div className="flex items-center text-blue-800 text-sm">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-800 mr-2"></div>
-                            Đang tải lịch sử chat...
+                    {/* Loading State */}
+                    {loading && (
+                        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex-shrink-0">
+                            <div className="flex items-center text-blue-800 text-sm">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-800 mr-2"></div>
+                                Đang tải lịch sử chat...
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )}
 
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-200px)]">
-                    {/* Chat History Sidebar */}
-                    <div className="lg:col-span-1">
-                        <Card className="h-full">
-                            <CardHeader>
-                                <CardTitle className="flex items-center justify-between text-lg">
-                                    <div className="flex items-center">
-                                        <History className="w-5 h-5 mr-2" />
-                                        Lịch sử chat
-                                    </div>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => fetchChatHistory(false)}
-                                        disabled={loading}
-                                    >
-                                        <div
-                                            className={`w-4 h-4 ${
-                                                loading ? 'animate-spin' : ''
-                                            }`}
-                                        >
-                                            🔄
+                    {/* Chat Layout - Takes remaining space */}
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-6 flex-1 min-h-0">
+                        {/* Chat History Sidebar - Hidden on mobile when chat is active */}
+                        <div
+                            className={`lg:col-span-1 flex flex-col ${
+                                selectedSession ? 'hidden lg:flex' : 'flex'
+                            }`}
+                        >
+                            <Card className="flex-1 flex flex-col">
+                                <CardHeader className="flex-shrink-0">
+                                    <CardTitle className="flex items-center justify-between text-lg">
+                                        <div className="flex items-center">
+                                            <History className="w-5 h-5 mr-2" />
+                                            Lịch sử chat
                                         </div>
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => fetchChatHistory(false)}
-                                        disabled={loading}
-                                        className="ml-1"
-                                    >
-                                        <div className="w-4 h-4">🔧</div>
-                                    </Button>
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-0">
-                                <ScrollArea className="h-[calc(100vh-300px)]">
-                                    <div className="space-y-2 p-4">
                                         <Button
-                                            variant={
-                                                activeTab === 'new-chat'
-                                                    ? 'default'
-                                                    : 'ghost'
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                fetchChatHistory(false)
                                             }
-                                            className="w-full justify-start"
-                                            onClick={() => {
-                                                setActiveTab('new-chat');
-                                                setSelectedSession(null);
-                                                setMessages([]);
-                                                setCurrentChatId('');
-                                                // Clear any form state
-                                                setFiles(undefined);
-                                                setAudioBlob(null);
-                                                if (fileInputRef.current) {
-                                                    fileInputRef.current.value =
-                                                        '';
-                                                }
-                                            }}
+                                            disabled={loading}
                                         >
-                                            <MessageCircle className="w-4 h-4 mr-2" />
-                                            Chat mới
-                                        </Button>
-
-                                        {chatHistory.map((session) => (
                                             <div
-                                                key={session.id}
-                                                className="group relative"
+                                                className={`w-4 h-4 ${
+                                                    loading
+                                                        ? 'animate-spin'
+                                                        : ''
+                                                }`}
                                             >
-                                                <Button
-                                                    variant={
-                                                        selectedSession?.id ===
-                                                        session.id
-                                                            ? 'default'
-                                                            : 'ghost'
-                                                    }
-                                                    className="w-full justify-start text-left h-auto p-3"
-                                                    onClick={() => {
-                                                        setSelectedSession(
-                                                            session
-                                                        );
-                                                        setActiveTab('history');
-                                                        // Clear new chat state
-                                                        setMessages([]);
-                                                        setCurrentChatId(
-                                                            session.id
-                                                        );
-                                                    }}
-                                                >
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="font-medium text-sm truncate">
-                                                            {session.title}
-                                                        </div>
-                                                        <div className="text-xs text-gray-500 mt-1">
-                                                            {formatTime(
-                                                                session.updatedAt
-                                                            )}
-                                                        </div>
-                                                        <div className="mt-2">
-                                                            {getStatusBadge(
-                                                                session.status
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        deleteSession(
-                                                            session.id
-                                                        );
-                                                    }}
-                                                >
-                                                    <Trash2 className="w-3 h-3" />
-                                                </Button>
+                                                🔄
                                             </div>
-                                        ))}
-                                    </div>
-                                </ScrollArea>
-                            </CardContent>
-                        </Card>
-                    </div>
+                                        </Button>
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="flex-1 flex flex-col min-h-0 p-0">
+                                    <ScrollArea className="flex-1">
+                                        <div className="space-y-2 p-2 sm:p-4">
+                                            <Button
+                                                variant={
+                                                    activeTab === 'new-chat'
+                                                        ? 'default'
+                                                        : 'ghost'
+                                                }
+                                                className="w-full justify-start"
+                                                onClick={() => {
+                                                    setActiveTab('new-chat');
+                                                    setSelectedSession(null);
+                                                    setMessages([]);
+                                                    setCurrentChatId('');
+                                                    // Reset scroll state
+                                                    setIsNearBottom(true);
+                                                    // Clear any form state
+                                                    setFiles(undefined);
+                                                    setAudioBlob(null);
+                                                    if (fileInputRef.current) {
+                                                        fileInputRef.current.value =
+                                                            '';
+                                                    }
+                                                }}
+                                            >
+                                                <MessageCircle className="w-4 h-4 mr-2" />
+                                                Chat mới
+                                            </Button>
 
-                    {/* Chat Area */}
-                    <div className="lg:col-span-3">
-                        <Card className="h-full flex flex-col">
-                            <CardHeader>
-                                <CardTitle className="flex items-center justify-between">
-                                    <div className="flex items-center">
-                                        <Bot className="w-5 h-5 mr-2 text-orange-500" />
-                                        {selectedSession
-                                            ? selectedSession.title
-                                            : 'Trợ lý Vexere'}
-                                    </div>
-                                    {selectedSession && (
-                                        <div className="flex items-center space-x-2">
-                                            {getStatusBadge(
-                                                selectedSession.status
-                                            )}
-                                            <span className="text-sm text-gray-500">
-                                                {
-                                                    selectedSession.messages
-                                                        .length
-                                                }{' '}
-                                                tin nhắn
+                                            {chatHistory.map((session) => (
+                                                <div
+                                                    key={session.id}
+                                                    className="group relative"
+                                                >
+                                                    <Button
+                                                        variant={
+                                                            selectedSession?.id ===
+                                                            session.id
+                                                                ? 'default'
+                                                                : 'ghost'
+                                                        }
+                                                        className="w-full justify-start text-left h-auto p-2 sm:p-3"
+                                                        onClick={() => {
+                                                            setSelectedSession(
+                                                                session
+                                                            );
+                                                            setActiveTab(
+                                                                'history'
+                                                            );
+                                                            // Clear new chat state
+                                                            setMessages([]);
+                                                            setCurrentChatId(
+                                                                session.id
+                                                            );
+                                                            // Reset scroll state
+                                                            setIsNearBottom(
+                                                                true
+                                                            );
+                                                        }}
+                                                    >
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="font-medium text-sm truncate">
+                                                                {session.title}
+                                                            </div>
+                                                            <div className="text-xs text-gray-500 mt-1">
+                                                                {formatTime(
+                                                                    session.updatedAt
+                                                                )}
+                                                            </div>
+                                                            <div className="mt-2">
+                                                                {getStatusBadge(
+                                                                    session.status
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            deleteSession(
+                                                                session.id
+                                                            );
+                                                        }}
+                                                    >
+                                                        <Trash2 className="w-3 h-3" />
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </ScrollArea>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* Chat Area - Mobile optimized */}
+                        <div
+                            className={`lg:col-span-3 flex flex-col ${
+                                !selectedSession ? 'hidden lg:flex' : 'flex'
+                            }`}
+                        >
+                            <Card className="flex-1 flex flex-col">
+                                <CardHeader className="flex-shrink-0">
+                                    <CardTitle className="flex items-center justify-between">
+                                        <div className="flex items-center">
+                                            {/* Mobile back button */}
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="lg:hidden mr-2"
+                                                onClick={() => {
+                                                    setSelectedSession(null);
+                                                    setActiveTab('new-chat');
+                                                }}
+                                            >
+                                                <ArrowLeft className="w-4 h-4" />
+                                            </Button>
+                                            <Bot className="w-5 h-5 mr-2 text-orange-500" />
+                                            <span className="truncate">
+                                                {selectedSession
+                                                    ? selectedSession.title
+                                                    : 'Trợ lý Vexere'}
                                             </span>
                                         </div>
-                                    )}
-                                </CardTitle>
-                                {!selectedSession && (
-                                    <p className="text-sm text-gray-600">
-                                        Hỗ trợ đặt vé, tìm kiếm chuyến xe và
-                                        giải đáp thắc mắc
-                                        {messages.length > 0 && (
-                                            <span className="block text-xs text-blue-600 mt-1 font-medium">
-                                                💬 Cuộc trò chuyện mới - Tin
-                                                nhắn đầu tiên sẽ tạo phiên chat
-                                                tự động
-                                            </span>
+                                        {selectedSession && (
+                                            <div className="flex items-center space-x-2">
+                                                {getStatusBadge(
+                                                    selectedSession.status
+                                                )}
+                                                <span className="text-sm text-gray-500">
+                                                    {
+                                                        selectedSession.messages
+                                                            .length
+                                                    }{' '}
+                                                    tin nhắn
+                                                </span>
+                                            </div>
                                         )}
-                                    </p>
-                                )}
-                                {selectedSession && (
-                                    <p className="text-sm text-gray-600">
-                                        {selectedSession.status === 'active'
-                                            ? '📝 Phiên chat đang hoạt động - Tiếp tục cuộc trò chuyện'
-                                            : `📋 Phiên chat đã ${
-                                                  selectedSession.status ===
-                                                  'resolved'
-                                                      ? 'được giải quyết'
-                                                      : 'tạm dừng'
-                                              }`}
-                                    </p>
-                                )}
-                            </CardHeader>
+                                    </CardTitle>
+                                    {!selectedSession && (
+                                        <p className="text-sm text-gray-600">
+                                            Hỗ trợ đặt vé, tìm kiếm chuyến xe và
+                                            giải đáp thắc mắc
+                                            {messages.length > 0 && (
+                                                <span className="block text-xs text-blue-600 mt-1 font-medium">
+                                                    💬 Cuộc trò chuyện mới - Tin
+                                                    nhắn đầu tiên sẽ tạo phiên
+                                                    chat tự động
+                                                </span>
+                                            )}
+                                        </p>
+                                    )}
+                                    {selectedSession && (
+                                        <p className="text-sm text-gray-600">
+                                            {selectedSession.status === 'active'
+                                                ? '📝 Phiên chat đang hoạt động - Tiếp tục cuộc trò chuyện'
+                                                : `📋 Phiên chat đã ${
+                                                      selectedSession.status ===
+                                                      'resolved'
+                                                          ? 'được giải quyết'
+                                                          : 'tạm dừng'
+                                                  }`}
+                                        </p>
+                                    )}
+                                </CardHeader>
 
-                            <CardContent className="flex-1 flex flex-col">
-                                {/* Messages Area */}
-                                <ScrollArea className="flex-1 p-4 bg-gray-50 rounded-lg mb-4">
-                                    <div className="space-y-4">
-                                        {/* Show history messages if viewing a session */}
-                                        {selectedSession ? (
-                                            <>
-                                                {selectedSession.messages.map(
-                                                    (message) => (
+                                <CardContent className="flex-1 flex flex-col min-h-0 relative">
+                                    {/* Messages Area - Scrollable */}
+                                    <ScrollArea
+                                        ref={scrollAreaRef}
+                                        className="flex-1 bg-gray-50 rounded-lg mb-4 max-h-[calc(100vh-240px)] sm:max-h-[calc(100vh-280px)] lg:max-h-[calc(100vh-400px)]"
+                                        onScrollCapture={handleScroll}
+                                    >
+                                        <div className="p-2 sm:p-4 space-y-3 sm:space-y-4">
+                                            {/* Show history messages if viewing a session */}
+                                            {selectedSession ? (
+                                                <>
+                                                    {selectedSession.messages.map(
+                                                        (message) => (
+                                                            <div
+                                                                key={message.id}
+                                                                className={`flex ${
+                                                                    message.role ===
+                                                                    'user'
+                                                                        ? 'justify-end'
+                                                                        : 'justify-start'
+                                                                }`}
+                                                            >
+                                                                <div
+                                                                    className={`max-w-[85%] sm:max-w-[80%] rounded-lg p-2 sm:p-3 ${
+                                                                        message.role ===
+                                                                        'user'
+                                                                            ? 'bg-orange-500 text-white'
+                                                                            : 'bg-white text-gray-900 shadow-sm'
+                                                                    }`}
+                                                                >
+                                                                    <div className="flex items-center mb-1">
+                                                                        {message.role ===
+                                                                        'user' ? (
+                                                                            <User className="w-4 h-4 mr-2" />
+                                                                        ) : (
+                                                                            <Bot className="w-4 h-4 mr-2 text-orange-500" />
+                                                                        )}
+                                                                        <span className="text-xs opacity-75">
+                                                                            {message.role ===
+                                                                            'user'
+                                                                                ? 'Bạn'
+                                                                                : 'Trợ lý'}
+                                                                        </span>
+                                                                        <span className="text-xs opacity-50 ml-2">
+                                                                            {formatTime(
+                                                                                message.timestamp
+                                                                            )}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <div className="whitespace-pre-wrap">
+                                                                        {
+                                                                            message.content
+                                                                        }
+                                                                    </div>
+
+                                                                    {/* Display attachments */}
+                                                                    {message.attachments?.map(
+                                                                        (
+                                                                            attachment,
+                                                                            index
+                                                                        ) => (
+                                                                            <div
+                                                                                key={
+                                                                                    index
+                                                                                }
+                                                                                className="mt-2"
+                                                                            >
+                                                                                {attachment.type ===
+                                                                                    'image' && (
+                                                                                    <Image
+                                                                                        src={
+                                                                                            attachment.url ||
+                                                                                            '/placeholder.svg'
+                                                                                        }
+                                                                                        alt={
+                                                                                            attachment.name
+                                                                                        }
+                                                                                        width={
+                                                                                            200
+                                                                                        }
+                                                                                        height={
+                                                                                            200
+                                                                                        }
+                                                                                        className="rounded-lg"
+                                                                                    />
+                                                                                )}
+                                                                                {attachment.type ===
+                                                                                    'audio' && (
+                                                                                    <audio
+                                                                                        controls
+                                                                                        src={
+                                                                                            attachment.url
+                                                                                        }
+                                                                                        className="mt-2"
+                                                                                    />
+                                                                                )}
+                                                                            </div>
+                                                                        )
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                    )}
+
+                                                    {/* Loading state for session chat */}
+                                                    {isLoading && (
+                                                        <div className="flex justify-start">
+                                                            <div className="bg-white text-gray-900 shadow-sm rounded-lg p-3">
+                                                                <div className="flex items-center">
+                                                                    <Bot className="w-4 h-4 mr-2 text-orange-500" />
+                                                                    <div className="flex items-center space-x-1">
+                                                                        <span className="text-sm">
+                                                                            Đang
+                                                                            trả
+                                                                            lời
+                                                                        </span>
+                                                                        <div className="flex space-x-1">
+                                                                            <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"></div>
+                                                                            <div
+                                                                                className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"
+                                                                                style={{
+                                                                                    animationDelay:
+                                                                                        '0.1s',
+                                                                                }}
+                                                                            ></div>
+                                                                            <div
+                                                                                className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"
+                                                                                style={{
+                                                                                    animationDelay:
+                                                                                        '0.2s',
+                                                                                }}
+                                                                            ></div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    {/* New chat welcome message */}
+                                                    {messages.length === 0 && (
+                                                        <div className="text-center py-4 sm:py-8">
+                                                            <Bot className="w-8 h-8 sm:w-12 sm:h-12 mx-auto text-gray-400 mb-2 sm:mb-4" />
+                                                            <p className="text-gray-500 mb-2 sm:mb-4 text-sm sm:text-base px-4">
+                                                                Xin chào! Tôi là
+                                                                trợ lý Vexere.
+                                                                Tôi có thể giúp
+                                                                bạn:
+                                                            </p>
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600 max-w-2xl mx-auto px-4">
+                                                                <div className="bg-white p-2 sm:p-4 rounded-lg shadow-sm">
+                                                                    <h4 className="font-medium mb-1 sm:mb-2 text-xs sm:text-sm">
+                                                                        🎫 Đặt
+                                                                        vé xe
+                                                                    </h4>
+                                                                    <p className="text-xs sm:text-sm">
+                                                                        Tìm kiếm
+                                                                        và đặt
+                                                                        vé xe
+                                                                        khách
+                                                                        toàn
+                                                                        quốc
+                                                                    </p>
+                                                                </div>
+                                                                <div className="bg-white p-2 sm:p-4 rounded-lg shadow-sm">
+                                                                    <h4 className="font-medium mb-1 sm:mb-2 text-xs sm:text-sm">
+                                                                        📞 Hỗ
+                                                                        trợ 24/7
+                                                                    </h4>
+                                                                    <p className="text-xs sm:text-sm">
+                                                                        Giải đáp
+                                                                        thắc mắc
+                                                                        về dịch
+                                                                        vụ
+                                                                    </p>
+                                                                </div>
+                                                                <div className="bg-white p-2 sm:p-4 rounded-lg shadow-sm">
+                                                                    <h4 className="font-medium mb-1 sm:mb-2 text-xs sm:text-sm">
+                                                                        🔄
+                                                                        Đổi/Hủy
+                                                                        vé
+                                                                    </h4>
+                                                                    <p className="text-xs sm:text-sm">
+                                                                        Hướng
+                                                                        dẫn thay
+                                                                        đổi
+                                                                        thông
+                                                                        tin vé
+                                                                    </p>
+                                                                </div>
+                                                                <div className="bg-white p-2 sm:p-4 rounded-lg shadow-sm">
+                                                                    <h4 className="font-medium mb-1 sm:mb-2 text-xs sm:text-sm">
+                                                                        💬 Đa
+                                                                        phương
+                                                                        tiện
+                                                                    </h4>
+                                                                    <p className="text-xs sm:text-sm">
+                                                                        Hỗ trợ
+                                                                        văn bản,
+                                                                        giọng
+                                                                        nói và
+                                                                        hình ảnh
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Current chat messages */}
+                                                    {messages.map((message) => (
                                                         <div
                                                             key={message.id}
                                                             className={`flex ${
@@ -675,7 +942,7 @@ export default function ChatPage() {
                                                             }`}
                                                         >
                                                             <div
-                                                                className={`max-w-[80%] rounded-lg p-3 ${
+                                                                className={`max-w-[85%] sm:max-w-[80%] rounded-lg p-2 sm:p-3 ${
                                                                     message.role ===
                                                                     'user'
                                                                         ? 'bg-orange-500 text-white'
@@ -694,11 +961,6 @@ export default function ChatPage() {
                                                                         'user'
                                                                             ? 'Bạn'
                                                                             : 'Trợ lý'}
-                                                                    </span>
-                                                                    <span className="text-xs opacity-50 ml-2">
-                                                                        {formatTime(
-                                                                            message.timestamp
-                                                                        )}
                                                                     </span>
                                                                 </div>
 
@@ -728,7 +990,8 @@ export default function ChatPage() {
                                                                                         '/placeholder.svg'
                                                                                     }
                                                                                     alt={
-                                                                                        attachment.name
+                                                                                        attachment.name ||
+                                                                                        `attachment-${index}`
                                                                                     }
                                                                                     width={
                                                                                         200
@@ -754,362 +1017,203 @@ export default function ChatPage() {
                                                                 )}
                                                             </div>
                                                         </div>
-                                                    )
-                                                )}
+                                                    ))}
 
-                                                {/* Loading state for session chat */}
-                                                {isLoading && (
-                                                    <div className="flex justify-start">
-                                                        <div className="bg-white text-gray-900 shadow-sm rounded-lg p-3">
-                                                            <div className="flex items-center">
-                                                                <Bot className="w-4 h-4 mr-2 text-orange-500" />
-                                                                <div className="flex items-center space-x-1">
-                                                                    <span className="text-sm">
-                                                                        Đang trả
-                                                                        lời
-                                                                    </span>
-                                                                    <div className="flex space-x-1">
-                                                                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"></div>
-                                                                        <div
-                                                                            className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"
-                                                                            style={{
-                                                                                animationDelay:
-                                                                                    '0.1s',
-                                                                            }}
-                                                                        ></div>
-                                                                        <div
-                                                                            className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"
-                                                                            style={{
-                                                                                animationDelay:
-                                                                                    '0.2s',
-                                                                            }}
-                                                                        ></div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </>
-                                        ) : (
-                                            <>
-                                                {/* New chat welcome message */}
-                                                {messages.length === 0 && (
-                                                    <div className="text-center py-8">
-                                                        <Bot className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                                                        <p className="text-gray-500 mb-4">
-                                                            Xin chào! Tôi là trợ
-                                                            lý Vexere. Tôi có
-                                                            thể giúp bạn:
-                                                        </p>
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600 max-w-2xl mx-auto">
-                                                            <div className="bg-white p-4 rounded-lg shadow-sm">
-                                                                <h4 className="font-medium mb-2">
-                                                                    🎫 Đặt vé xe
-                                                                </h4>
-                                                                <p>
-                                                                    Tìm kiếm và
-                                                                    đặt vé xe
-                                                                    khách toàn
-                                                                    quốc
-                                                                </p>
-                                                            </div>
-                                                            <div className="bg-white p-4 rounded-lg shadow-sm">
-                                                                <h4 className="font-medium mb-2">
-                                                                    📞 Hỗ trợ
-                                                                    24/7
-                                                                </h4>
-                                                                <p>
-                                                                    Giải đáp
-                                                                    thắc mắc về
-                                                                    dịch vụ
-                                                                </p>
-                                                            </div>
-                                                            <div className="bg-white p-4 rounded-lg shadow-sm">
-                                                                <h4 className="font-medium mb-2">
-                                                                    🔄 Đổi/Hủy
-                                                                    vé
-                                                                </h4>
-                                                                <p>
-                                                                    Hướng dẫn
-                                                                    thay đổi
-                                                                    thông tin vé
-                                                                </p>
-                                                            </div>
-                                                            <div className="bg-white p-4 rounded-lg shadow-sm">
-                                                                <h4 className="font-medium mb-2">
-                                                                    💬 Đa phương
-                                                                    tiện
-                                                                </h4>
-                                                                <p>
-                                                                    Hỗ trợ văn
-                                                                    bản, giọng
-                                                                    nói và hình
-                                                                    ảnh
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {/* Current chat messages */}
-                                                {messages.map((message) => (
-                                                    <div
-                                                        key={message.id}
-                                                        className={`flex ${
-                                                            message.role ===
-                                                            'user'
-                                                                ? 'justify-end'
-                                                                : 'justify-start'
-                                                        }`}
-                                                    >
-                                                        <div
-                                                            className={`max-w-[80%] rounded-lg p-3 ${
-                                                                message.role ===
-                                                                'user'
-                                                                    ? 'bg-orange-500 text-white'
-                                                                    : 'bg-white text-gray-900 shadow-sm'
-                                                            }`}
-                                                        >
-                                                            <div className="flex items-center mb-1">
-                                                                {message.role ===
-                                                                'user' ? (
-                                                                    <User className="w-4 h-4 mr-2" />
-                                                                ) : (
+                                                    {isLoading && (
+                                                        <div className="flex justify-start">
+                                                            <div className="bg-white text-gray-900 shadow-sm rounded-lg p-3">
+                                                                <div className="flex items-center">
                                                                     <Bot className="w-4 h-4 mr-2 text-orange-500" />
-                                                                )}
-                                                                <span className="text-xs opacity-75">
-                                                                    {message.role ===
-                                                                    'user'
-                                                                        ? 'Bạn'
-                                                                        : 'Trợ lý'}
-                                                                </span>
-                                                            </div>
-
-                                                            <div className="whitespace-pre-wrap">
-                                                                {
-                                                                    message.content
-                                                                }
-                                                            </div>
-
-                                                            {/* Display attachments */}
-                                                            {message.attachments?.map(
-                                                                (
-                                                                    attachment,
-                                                                    index
-                                                                ) => (
-                                                                    <div
-                                                                        key={
-                                                                            index
-                                                                        }
-                                                                        className="mt-2"
-                                                                    >
-                                                                        {attachment.type ===
-                                                                            'image' && (
-                                                                            <Image
-                                                                                src={
-                                                                                    attachment.url ||
-                                                                                    '/placeholder.svg'
-                                                                                }
-                                                                                alt={
-                                                                                    attachment.name ||
-                                                                                    `attachment-${index}`
-                                                                                }
-                                                                                width={
-                                                                                    200
-                                                                                }
-                                                                                height={
-                                                                                    200
-                                                                                }
-                                                                                className="rounded-lg"
-                                                                            />
-                                                                        )}
-                                                                        {attachment.type ===
-                                                                            'audio' && (
-                                                                            <audio
-                                                                                controls
-                                                                                src={
-                                                                                    attachment.url
-                                                                                }
-                                                                                className="mt-2"
-                                                                            />
-                                                                        )}
-                                                                    </div>
-                                                                )
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ))}
-
-                                                {isLoading && (
-                                                    <div className="flex justify-start">
-                                                        <div className="bg-white text-gray-900 shadow-sm rounded-lg p-3">
-                                                            <div className="flex items-center">
-                                                                <Bot className="w-4 h-4 mr-2 text-orange-500" />
-                                                                <div className="flex items-center space-x-1">
-                                                                    <span className="text-sm">
-                                                                        Đang trả
-                                                                        lời
-                                                                    </span>
-                                                                    <div className="flex space-x-1">
-                                                                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"></div>
-                                                                        <div
-                                                                            className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"
-                                                                            style={{
-                                                                                animationDelay:
-                                                                                    '0.1s',
-                                                                            }}
-                                                                        ></div>
-                                                                        <div
-                                                                            className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"
-                                                                            style={{
-                                                                                animationDelay:
-                                                                                    '0.2s',
-                                                                            }}
-                                                                        ></div>
+                                                                    <div className="flex items-center space-x-1">
+                                                                        <span className="text-sm">
+                                                                            Đang
+                                                                            trả
+                                                                            lời
+                                                                        </span>
+                                                                        <div className="flex space-x-1">
+                                                                            <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"></div>
+                                                                            <div
+                                                                                className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"
+                                                                                style={{
+                                                                                    animationDelay:
+                                                                                        '0.1s',
+                                                                                }}
+                                                                            ></div>
+                                                                            <div
+                                                                                className="w-2 h-2 bg-orange-500 rounded-full animate-bounce"
+                                                                                style={{
+                                                                                    animationDelay:
+                                                                                        '0.2s',
+                                                                                }}
+                                                                            ></div>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-                                </ScrollArea>
-
-                                {/* Input Area - Show for new chat and active sessions */}
-                                {(!selectedSession ||
-                                    selectedSession.status === 'active') && (
-                                    <form
-                                        onSubmit={handleFormSubmit}
-                                        className="space-y-3"
-                                    >
-                                        {/* File Preview */}
-                                        {files && files.length > 0 && (
-                                            <div className="flex flex-wrap gap-2">
-                                                {Array.from(files).map(
-                                                    (file, index) => (
-                                                        <Badge
-                                                            key={index}
-                                                            variant="secondary"
-                                                        >
-                                                            <ImageIcon className="w-3 h-3 mr-1" />
-                                                            {file.name}
-                                                        </Badge>
-                                                    )
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {/* Audio Preview */}
-                                        {audioBlob && (
-                                            <div className="flex items-center space-x-2">
-                                                <Badge variant="secondary">
-                                                    <Mic className="w-3 h-3 mr-1" />
-                                                    Ghi âm sẵn sàng
-                                                </Badge>
-                                                <audio
-                                                    controls
-                                                    src={URL.createObjectURL(
-                                                        audioBlob
                                                     )}
-                                                    className="h-8"
-                                                />
-                                            </div>
-                                        )}
-
-                                        <div className="flex space-x-2">
-                                            {/* File Upload */}
-                                            <input
-                                                type="file"
-                                                ref={fileInputRef}
-                                                onChange={(e) =>
-                                                    setFiles(
-                                                        e.target.files ||
-                                                            undefined
-                                                    )
-                                                }
-                                                multiple
-                                                accept="image/*"
-                                                className="hidden"
+                                                </>
+                                            )}
+                                            {/* Scroll anchor for auto-scroll */}
+                                            <div
+                                                ref={messagesEndRef}
+                                                className="h-4"
                                             />
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="icon"
-                                                onClick={() =>
-                                                    fileInputRef.current?.click()
-                                                }
-                                            >
-                                                <ImageIcon className="w-4 h-4" />
-                                            </Button>
-
-                                            {/* Voice Recording */}
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="icon"
-                                                onClick={
-                                                    isRecording
-                                                        ? stopRecording
-                                                        : startRecording
-                                                }
-                                                className={
-                                                    isRecording
-                                                        ? 'bg-red-100 text-red-600'
-                                                        : ''
-                                                }
-                                            >
-                                                {isRecording ? (
-                                                    <MicOff className="w-4 h-4" />
-                                                ) : (
-                                                    <Mic className="w-4 h-4" />
-                                                )}
-                                            </Button>
-
-                                            {/* Text Input */}
-                                            <Input
-                                                value={input}
-                                                onChange={handleInputChange}
-                                                placeholder={
-                                                    selectedSession
-                                                        ? 'Tiếp tục cuộc trò chuyện...'
-                                                        : 'Nhập tin nhắn hoặc hỏi về vé xe...'
-                                                }
-                                                className="flex-1"
-                                            />
-
-                                            {/* Send Button */}
-                                            <Button
-                                                type="submit"
-                                                disabled={isLoading}
-                                            >
-                                                <Send className="w-4 h-4" />
-                                            </Button>
                                         </div>
-                                    </form>
-                                )}
+                                    </ScrollArea>
 
-                                {/* Disabled session message */}
-                                {selectedSession &&
-                                    selectedSession.status !== 'active' && (
-                                        <div className="bg-gray-100 p-3 rounded-lg text-center text-sm text-gray-600">
-                                            📝 Phiên chat này đã{' '}
-                                            {selectedSession.status ===
-                                            'resolved'
-                                                ? 'được giải quyết'
-                                                : 'tạm dừng'}
-                                            . Không thể gửi tin nhắn mới.
-                                            <br />
-                                            <span className="text-xs text-gray-500 mt-1 block">
-                                                Để bắt đầu cuộc trò chuyện mới,
-                                                vui lòng chọn "Chat mới".
-                                            </span>
+                                    {/* Scroll to bottom button */}
+                                    {!isNearBottom && (
+                                        <div className="absolute bottom-16 sm:bottom-20 right-2 sm:right-4 z-10">
+                                            <Button
+                                                onClick={scrollToBottom}
+                                                size="sm"
+                                                className="rounded-full shadow-lg w-8 h-8 sm:w-auto sm:h-auto"
+                                                variant="secondary"
+                                            >
+                                                <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4" />
+                                            </Button>
                                         </div>
                                     )}
-                            </CardContent>
-                        </Card>
+
+                                    {/* Input Area - Show for new chat and active sessions */}
+                                    {(!selectedSession ||
+                                        selectedSession.status ===
+                                            'active') && (
+                                        <form
+                                            onSubmit={handleFormSubmit}
+                                            className="space-y-2 sm:space-y-3"
+                                        >
+                                            {/* File Preview */}
+                                            {files && files.length > 0 && (
+                                                <div className="flex flex-wrap gap-2">
+                                                    {Array.from(files).map(
+                                                        (file, index) => (
+                                                            <Badge
+                                                                key={index}
+                                                                variant="secondary"
+                                                            >
+                                                                <ImageIcon className="w-3 h-3 mr-1" />
+                                                                {file.name}
+                                                            </Badge>
+                                                        )
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Audio Preview */}
+                                            {audioBlob && (
+                                                <div className="flex items-center space-x-2">
+                                                    <Badge variant="secondary">
+                                                        <Mic className="w-3 h-3 mr-1" />
+                                                        Ghi âm sẵn sàng
+                                                    </Badge>
+                                                    <audio
+                                                        controls
+                                                        src={URL.createObjectURL(
+                                                            audioBlob
+                                                        )}
+                                                        className="h-8"
+                                                    />
+                                                </div>
+                                            )}
+
+                                            <div className="flex space-x-1 sm:space-x-2">
+                                                {/* File Upload */}
+                                                <input
+                                                    type="file"
+                                                    ref={fileInputRef}
+                                                    onChange={(e) =>
+                                                        setFiles(
+                                                            e.target.files ||
+                                                                undefined
+                                                        )
+                                                    }
+                                                    multiple
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="icon"
+                                                    className="h-8 w-8 sm:h-10 sm:w-10"
+                                                    onClick={() =>
+                                                        fileInputRef.current?.click()
+                                                    }
+                                                >
+                                                    <ImageIcon className="w-3 h-3 sm:w-4 sm:h-4" />
+                                                </Button>
+
+                                                {/* Voice Recording */}
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="icon"
+                                                    className={`h-8 w-8 sm:h-10 sm:w-10 ${
+                                                        isRecording
+                                                            ? 'bg-red-100 text-red-600'
+                                                            : ''
+                                                    }`}
+                                                    onClick={
+                                                        isRecording
+                                                            ? stopRecording
+                                                            : startRecording
+                                                    }
+                                                >
+                                                    {isRecording ? (
+                                                        <MicOff className="w-3 h-3 sm:w-4 sm:h-4" />
+                                                    ) : (
+                                                        <Mic className="w-3 h-3 sm:w-4 sm:h-4" />
+                                                    )}
+                                                </Button>
+
+                                                {/* Text Input */}
+                                                <Input
+                                                    value={input}
+                                                    onChange={handleInputChange}
+                                                    placeholder={
+                                                        selectedSession
+                                                            ? 'Tiếp tục cuộc trò chuyện...'
+                                                            : 'Nhập tin nhắn hoặc hỏi về vé xe...'
+                                                    }
+                                                    className="flex-1 h-8 sm:h-10 text-sm sm:text-base"
+                                                />
+
+                                                {/* Send Button */}
+                                                <Button
+                                                    type="submit"
+                                                    disabled={isLoading}
+                                                    className="h-8 w-8 sm:h-10 sm:w-10"
+                                                    size="icon"
+                                                >
+                                                    <Send className="w-3 h-3 sm:w-4 sm:h-4" />
+                                                </Button>
+                                            </div>
+                                        </form>
+                                    )}
+
+                                    {/* Disabled session message */}
+                                    {selectedSession &&
+                                        selectedSession.status !== 'active' && (
+                                            <div className="bg-gray-100 p-3 rounded-lg text-center text-sm text-gray-600">
+                                                📝 Phiên chat này đã{' '}
+                                                {selectedSession.status ===
+                                                'resolved'
+                                                    ? 'được giải quyết'
+                                                    : 'tạm dừng'}
+                                                . Không thể gửi tin nhắn mới.
+                                                <br />
+                                                <span className="text-xs text-gray-500 mt-1 block">
+                                                    Để bắt đầu cuộc trò chuyện
+                                                    mới, vui lòng chọn "Chat
+                                                    mới".
+                                                </span>
+                                            </div>
+                                        )}
+                                </CardContent>
+                            </Card>
+                        </div>
                     </div>
                 </div>
             </div>
