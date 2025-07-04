@@ -227,8 +227,11 @@ def validate_chat_history_data(data: dict, is_update: bool = False):
 def serialize_chat_history(chat_history):
     """Convert MongoDB document to JSON serializable format"""
     if chat_history:
-        chat_history["id"] = str(chat_history["_id"])
-        del chat_history["_id"]
+        # Keep both _id and id for frontend compatibility
+        chat_history["_id"] = str(
+            chat_history["_id"]
+        )  # Keep _id as string for frontend
+        chat_history["id"] = chat_history["_id"]  # Also provide id field
 
         # Convert datetime objects to ISO string format
         if "createdAt" in chat_history and isinstance(
