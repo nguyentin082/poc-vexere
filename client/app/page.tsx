@@ -53,6 +53,7 @@ import {
     Bus,
     Filter,
     X,
+    Copy,
 } from 'lucide-react';
 import Link from 'next/link';
 import { mockTickets } from '@/mock';
@@ -112,6 +113,7 @@ export default function HomePage() {
     // Filter tickets locally (can be optimized to use API filtering)
     useEffect(() => {
         const filtered = tickets.filter((ticket) => {
+            const ticketId = getTicketId(ticket);
             const matchesSearch =
                 ticket.userName
                     .toLowerCase()
@@ -124,7 +126,9 @@ export default function HomePage() {
                     .includes(searchTerm.toLowerCase()) ||
                 ticket.companyName
                     .toLowerCase()
-                    .includes(searchTerm.toLowerCase());
+                    .includes(searchTerm.toLowerCase()) ||
+                (ticketId &&
+                    ticketId.toLowerCase().includes(searchTerm.toLowerCase()));
 
             const matchesStatus =
                 statusFilter === 'all' || ticket.status === statusFilter;
@@ -715,7 +719,7 @@ export default function HomePage() {
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div className="md:col-span-2">
                                 <Input
-                                    placeholder="Tìm theo tên, SĐT, tuyến đường, mã chuyến..."
+                                    placeholder="Tìm theo tên, SĐT, tuyến đường, mã chuyến, mã vé..."
                                     value={searchTerm}
                                     onChange={(e) =>
                                         setSearchTerm(e.target.value)
@@ -820,6 +824,56 @@ export default function HomePage() {
                             className="hover:shadow-lg transition-shadow"
                         >
                             <CardContent className="p-6">
+                                {/* Ticket ID Header */}
+                                <div className="mb-4 pb-3 border-b border-gray-100">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-2">
+                                            <Badge
+                                                variant="outline"
+                                                className="text-blue-600 border-blue-200 font-mono"
+                                            >
+                                                Mã vé:{' '}
+                                                {getTicketId(ticket) ||
+                                                    'Chưa có ID'}
+                                            </Badge>
+                                            {getTicketId(ticket) && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-6 w-6 p-0"
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(
+                                                            getTicketId(
+                                                                ticket
+                                                            ) || ''
+                                                        );
+                                                        // You can add a toast notification here
+                                                    }}
+                                                >
+                                                    <Copy className="w-3 h-3" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                            Tạo:{' '}
+                                            {isClient && ticket.createdAt
+                                                ? new Date(
+                                                      ticket.createdAt
+                                                  ).toLocaleDateString(
+                                                      'vi-VN',
+                                                      {
+                                                          day: '2-digit',
+                                                          month: '2-digit',
+                                                          year: 'numeric',
+                                                          hour: '2-digit',
+                                                          minute: '2-digit',
+                                                      }
+                                                  )
+                                                : 'Không rõ'}
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                                     {/* Customer Info */}
                                     <div className="lg:col-span-3">
@@ -864,6 +918,11 @@ export default function HomePage() {
                                             </div>
                                             <div className="text-xs text-gray-500">
                                                 Mã chuyến: {ticket.tripId}
+                                            </div>
+                                            <div className="text-xs text-blue-600 font-medium">
+                                                Mã vé:{' '}
+                                                {getTicketId(ticket) ||
+                                                    'Chưa có ID'}
                                             </div>
                                             {!getTicketId(ticket) && (
                                                 <div className="text-xs text-red-500">
