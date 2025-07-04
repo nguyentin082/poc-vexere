@@ -16,14 +16,30 @@ async def chat(request: Request):
         json_body = await request.json()
         chat_id = json_body.get("chat_id")
         message = json_body.get("message")
-        # Chat API processing
-        chat_messages = await chat_processing(chat_id, message)
+
+        # Chat API processing - this handles creating new chat if needed and saves user message
+        # Returns tuple of (actual_chat_id, chat_messages)
+        actual_chat_id, chat_messages = await chat_processing(chat_id, message)
+
         print("=" * 50)
-        print(f"Chat messages for chat_id {chat_id}:")
+        print(f"Original chat_id: {chat_id}")
+        print(f"Actual chat_id: {actual_chat_id}")
+        print(f"Chat messages count: {len(chat_messages)}")
         pprint(chat_messages)
-        return chat_service(
-            message=message, chat_history=chat_messages, chat_id=chat_id
+
+        # Call chat service with the actual chat_id (important for saving assistant response)
+        response = chat_service(
+            message=message,
+            chat_history=chat_messages,
+            chat_id=actual_chat_id,  # Use actual_chat_id, not original chat_id
         )
+
+        # Ensure the response includes the actual chat_id
+        if "chat_id" not in response or not response["chat_id"]:
+            response["chat_id"] = actual_chat_id
+
+        print(f"Final response chat_id: {response.get('chat_id')}")
+        return response
     except HTTPException:
         raise
     except Exception as e:

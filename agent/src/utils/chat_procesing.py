@@ -56,17 +56,20 @@ async def chat_exists(chat_id: str) -> bool:
             raise Exception(f"Unexpected status code: {response.status_code}")
 
 
-async def chat_processing(chat_id: str, message: str) -> list[dict]:
+async def chat_processing(chat_id: str, message: str) -> tuple[str, list[dict]]:
     """
     Case 1: If chat_id is empty or none, create a new chat and append the message.
     Case 2: If chat_id exists, append the message to the existing chat.
     Case 3: If chat_id is invalid, raise an error.
-    Returns the updated chat messages.
+    Returns tuple of (actual_chat_id, updated_chat_messages).
     """
+    actual_chat_id = chat_id
+
     if not chat_id or str(chat_id).strip().lower() in ["", "null", "undefined"]:
         # Case 1: Create a new chat
-        chat_id = await create_new_chat()
-        await append_message_to_chat(chat_id, message)
+        actual_chat_id = await create_new_chat()
+        print(f"[DEBUG] Created new chat with ID: {actual_chat_id}")
+        await append_message_to_chat(actual_chat_id, message)
     else:
         # Case 2: Check if chat exists
         if not await chat_exists(chat_id):
@@ -74,5 +77,6 @@ async def chat_processing(chat_id: str, message: str) -> list[dict]:
         # Append the message to the existing chat
         await append_message_to_chat(chat_id, message)
 
-    # Return the updated chat messages
-    return await get_chat_messages_by_id(chat_id)
+    # Return the actual chat_id and updated chat messages
+    messages = await get_chat_messages_by_id(actual_chat_id)
+    return actual_chat_id, messages
