@@ -25,6 +25,15 @@ Vexere is a modern bus booking platform that combines intelligent customer servi
 -   **AI Agent**: Intelligent chat assistant for customer support and FAQ
 -   **Backend Server**: RESTful API for ticket management and data persistence
 
+### Why MongoDB Atlas?
+
+-   **🌐 Cloud-Native**: No local database installation required
+-   **🔒 Security**: Built-in security features and encryption
+-   **📈 Scalability**: Automatic scaling based on demand
+-   **🔄 Backup**: Automated backups and point-in-time recovery
+-   **🌍 Global**: Multi-region deployment options
+-   **💰 Cost-Effective**: Free tier available (512MB storage)
+
 ## 🏗️ Architecture
 
 ```
@@ -37,8 +46,8 @@ Vexere is a modern bus booking platform that combines intelligent customer servi
          │                       │                       │
          ▼                       ▼                       ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   UI/UX         │    │   NLP/AI        │    │   Database      │
-│   Chat Interface│    │   Intent Class. │    │   MongoDB       │
+│   UI/UX         │    │   NLP/AI        │    │   Cloud Database│
+│   Chat Interface│    │   Intent Class. │    │   MongoDB Atlas │
 │   Ticket View   │    │   Vector Search │    │   Ticket Data   │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
@@ -92,7 +101,7 @@ Before running this project, make sure you have the following installed:
 
 -   **Node.js** (v18.0.0 or higher)
 -   **Python** (v3.8 or higher)
--   **MongoDB** (v5.0 or higher)
+-   **MongoDB Atlas** account (cloud database)
 -   **npm** or **pnpm** or **yarn**
 -   **Git**
 
@@ -132,6 +141,14 @@ pip install -r requirements.txt
 
 ### 4. Environment Setup
 
+#### MongoDB Atlas Setup
+
+1. Create a free account at [MongoDB Atlas](https://www.mongodb.com/atlas)
+2. Create a new cluster (free tier available)
+3. Create a database user with read/write permissions
+4. Get your connection string from the Atlas dashboard
+5. Whitelist your IP address or use `0.0.0.0/0` for development
+
 #### Frontend (.env.local)
 
 ```bash
@@ -160,7 +177,7 @@ OPENAI_API_KEY=your_openai_api_key
 MILVUS_HOST=localhost
 MILVUS_PORT=19530
 BACKEND_URL=http://localhost:8000
-MONGODB_URL=mongodb://localhost:27017
+MONGODB_URL=mongodb+srv://username:password@cluster.xxxxx.mongodb.net/vexere?retryWrites=true&w=majority
 ```
 
 #### Backend Server (.env)
@@ -173,7 +190,7 @@ cp .env.example .env
 Edit `.env`:
 
 ```env
-MONGODB_URL=mongodb://localhost:27017
+MONGODB_URL=mongodb+srv://username:password@cluster.xxxxx.mongodb.net/vexere?retryWrites=true&w=majority
 MONGODB_DB_NAME=vexere
 ```
 
@@ -181,14 +198,20 @@ MONGODB_DB_NAME=vexere
 
 ### Development Mode
 
-#### 1. Start MongoDB
+#### 1. Setup MongoDB Atlas (Cloud Database)
 
-```bash
-# Using MongoDB service
-sudo systemctl start mongod
+No local installation required! MongoDB Atlas provides a cloud-hosted database:
 
-# Or using Docker
-docker run -d -p 27017:27017 --name mongodb mongo:latest
+1. **Create Atlas Account**: Sign up at [MongoDB Atlas](https://www.mongodb.com/atlas)
+2. **Create Cluster**: Create a free M0 cluster (512MB storage)
+3. **Database Access**: Create a database user with read/write permissions
+4. **Network Access**: Add your IP address to the IP Access List
+5. **Connect**: Get your connection string from "Connect" → "Connect your application"
+
+Example connection string:
+
+```
+mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/vexere?retryWrites=true&w=majority
 ```
 
 #### 2. Start Backend Server (Terminal 1)
@@ -427,12 +450,12 @@ vexere/
 -   **FastAPI** - High-performance Python web framework
 -   **OpenAI GPT** - Large language model
 -   **Milvus** - Vector database for semantic search
--   **MongoDB** - Document database
+-   **MongoDB Atlas** - Cloud document database
 
 ### Backend Server
 
 -   **FastAPI** - Python web framework
--   **MongoDB** - Document database
+-   **MongoDB Atlas** - Cloud document database
 -   **PyMongo** - MongoDB driver for Python
 
 ### DevOps & Tools
@@ -520,15 +543,25 @@ The AI agent uses natural language processing to:
 
 ### Common Issues
 
-#### 1. MongoDB Connection Error
+#### 1. MongoDB Atlas Connection Error
 
 ```bash
-# Check if MongoDB is running
-sudo systemctl status mongod
+# Check your connection string format
+mongodb+srv://username:password@cluster.xxxxx.mongodb.net/vexere?retryWrites=true&w=majority
 
-# Start MongoDB
-sudo systemctl start mongod
+# Verify:
+# 1. Username and password are correct
+# 2. IP address is whitelisted in Atlas
+# 3. Database user has proper permissions
+# 4. Network connectivity is working
 ```
+
+**MongoDB Atlas Troubleshooting:**
+
+-   Ensure your IP is added to IP Access List
+-   Check database user credentials
+-   Verify cluster is active and running
+-   Test connection from Atlas dashboard
 
 #### 2. Port Already in Use
 
